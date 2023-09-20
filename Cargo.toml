@@ -1,0 +1,9 @@
+[package]
+name = "email-parser"
+version = "0.1.0"
+edition = "2021"
+description = "a simple email parser based on ABNF defined in RFC5322 'addr-spec'"
+authors = ["Manojna <m@mkpsays.in>"]
+license = "MIT"
+
+[dependencies]
