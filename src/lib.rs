@@ -1,3 +1,4 @@
+//! ## Grammar
 //! Parser for email address (`addr-spec`) as defined in Section 3.4.1 of [`RFC5322`].
 //! This crate implements only a subset of the grammar and does not support folding white space
 //! and comments in email address. Also, the grammar rules that are defined to preserve backwards
@@ -58,48 +59,64 @@
 //! ```
 //!
 //! [`RFC5322`]: https://datatracker.ietf.org/doc/html/rfc5322#section-3.4.1
+//!
+//! ## Finite State Machine
+//!
+//! The above grammar defines a Regular language. So, we do not need to construct a lexer and
+//! a parser. Email address as defined above can be parsed using finite automaton (or regular
+//! expressions also will do). In this crate, we construct a finite state machine (module fsm)
+//! and parse the given string into email address or fail and emit errors.
+//!
+//! ```
+//! use email_parser::Email;
+//! let email: Email = "someone@example.com".parse().unwrap();
+//! ```
 
-mod terminal {
-    pub struct At;
-    pub struct OpenBracket;
-    pub struct CloseBracket;
-    pub struct DText(char);
-    pub struct AText(char);
-    pub struct Specials(char);
-    pub struct Backslash;
-    pub struct Dot;
-    pub struct Escape(char);
-    pub struct QText(char);
-    pub struct DQuote;
+use crate::fsm::{State, FSM};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use thiserror::Error;
+
+/// Email parsing errors.
+#[derive(Error, Debug, Clone)]
+pub enum Error {
+    #[error("cannot parse empty email id")]
+    EmptyEmail,
+    #[error("invalid RFC5322 formatted email id")]
+    InvalidEmail,
 }
 
-mod non_terminal {
-    use super::terminal;
-    pub struct AddrSpec(pub LocalPart, pub terminal::At, pub Domain);
-    pub enum LocalPart {
-        DotAtom(DotAtom),
-        QuotedString(QuotedString),
+/// Email parsing is accomplished using a finite state machine. FSM is defined in this module.
+/// Finite automaton has several states and transitions. When iterator is completely consumed, if
+/// the state is a final state, then given string is valid email address.
+mod fsm;
+
+/// This is the core of the crate. Defines email address type which can be constructed by parsing a
+/// string literal. As long as it is constructed properly, then it means the email address is valid.
+pub struct Email {
+    local: String,
+    domain: String,
+}
+
+/// Support parsing from string literal.
+impl FromStr for Email {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let m = fsm::Machine::new(s);
+        let ref state = m.into_iter().last().ok_or(Error::EmptyEmail)?;
+        let (one, two) = State::is_final(state)
+            .then(|| s.split_once('@').unwrap())
+            .ok_or(Error::InvalidEmail)?;
+        Ok(Self {
+            local: one.to_owned(),
+            domain: two.to_owned(),
+        })
     }
-    pub enum Domain {
-        DotAtom(DotAtom),
-        DomainLiteral(DomainLiteral),
+}
+
+/// Support formatted output.
+impl Display for Email {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}@{}", self.local, self.domain)
     }
-    pub struct DomainLiteral(
-        terminal::OpenBracket,
-        Vec<terminal::DText>,
-        terminal::CloseBracket,
-    );
-    pub struct Atom(pub Vec<terminal::AText>);
-    pub struct DotAtomLiteral(pub terminal::Dot, pub Atom);
-    pub struct DotAtom(pub Atom, pub Vec<DotAtomLiteral>);
-    pub struct QuotedPair(pub terminal::Backslash, pub terminal::Escape);
-    pub enum QContent {
-        QText(terminal::QText),
-        QuotedPair(QuotedPair),
-    }
-    pub struct QuotedString(
-        pub terminal::DQuote,
-        pub Vec<QContent>,
-        pub terminal::DQuote,
-    );
 }

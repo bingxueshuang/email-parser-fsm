@@ -7,3 +7,4 @@ authors = ["Manojna <m@mkpsays.in>"]
 license = "MIT"
 
 [dependencies]
+thiserror = "1.0.48"
