@@ -1,0 +1,43 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  rustdoc:
+    name: Rustdoc
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+
+      - name: Create rustdoc
+        run: cargo doc --document-private-items
+
+      - name: Upload artifacts
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: target/doc
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
